@@ -1,0 +1,17 @@
+.git
+.agents
+.codex
+.venv
+.env
+*.env
+!*.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+apps/frontend/node_modules/
+apps/frontend/dist/
+apps/frontend/test-results/
+apps/frontend/*tsbuildinfo
+apps/backend/local.sqlite3
+apps/backend/media/
+apps/backend/fittrack_backend.egg-info/

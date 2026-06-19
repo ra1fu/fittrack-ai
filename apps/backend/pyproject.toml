@@ -1,0 +1,20 @@
+[project]
+name = "fittrack-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "django>=5.0,<6.0",
+  "djangorestframework>=3.15,<4.0",
+  "drf-spectacular>=0.27,<1.0",
+  "pytest>=8.0,<9.0",
+  "pytest-django>=4.8,<5.0",
+  "djangorestframework-simplejwt>=5.3,<6.0",
+  "psycopg[binary]>=3.2,<4.0",
+]
+
+[tool.setuptools]
+packages = ["config", "health", "accounts", "profiles", "exercises", "routines", "workouts", "nutrition", "analytics"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
