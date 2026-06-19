@@ -16,6 +16,22 @@ export type User = {
   email_verified: boolean;
 };
 
+export type UserGoal = {
+  id: string;
+  goal_type: string;
+  calorie_target: number | null;
+  protein_target_g: string | null;
+  fat_target_g: string | null;
+  carbs_target_g: string | null;
+  workouts_per_week: number | null;
+  target_weight_min: string | null;
+  target_weight_max: string | null;
+  active_from: string;
+  active_to: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AuthTokens = {
   access: string;
   refresh: string;
@@ -158,6 +174,15 @@ export type WorkoutSet = {
   notes?: string;
 };
 
+export type WorkoutExercise = {
+  id: string;
+  exercise_id: string;
+  position: number;
+  notes?: string;
+  superset_group?: string;
+  sets: WorkoutSet[];
+};
+
 export type Workout = {
   id: string;
   name: string | null;
@@ -165,10 +190,5 @@ export type Workout = {
   started_at: string;
   finished_at: string | null;
   metrics: Record<string, unknown>;
-  exercises: Array<{
-    id: string;
-    exercise_id: string;
-    position: number;
-    sets: WorkoutSet[];
-  }>;
+  exercises: WorkoutExercise[];
 };

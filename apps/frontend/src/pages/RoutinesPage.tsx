@@ -321,6 +321,11 @@ function AddRoutineExerciseForm({ day, exercises }: { day: RoutineDay; exercises
           {create.error instanceof Error ? create.error.message : "Не удалось добавить упражнение"}
         </p>
       ) : null}
+      {exercises.length === 0 ? (
+        <p className="text-sm font-bold text-muted">
+          Каталог упражнений пуст. Создайте упражнение на странице Exercises, затем вернитесь к программе.
+        </p>
+      ) : null}
     </form>
   );
 }

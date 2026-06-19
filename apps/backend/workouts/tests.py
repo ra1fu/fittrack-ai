@@ -319,6 +319,118 @@ def test_started_workout_is_independent_from_later_routine_changes():
 
 
 @pytest.mark.django_db
+def test_add_workout_exercise_to_active_workout():
+    user = User.objects.create_user(
+        email="user@example.com",
+        password="strong-password-123",
+    )
+    chest = MuscleGroup.objects.create(code="chest", name="Грудь")
+    exercise = Exercise.objects.create(
+        name="Отжимания",
+        primary_muscle_group=chest,
+        tracking_type=ExerciseTrackingType.REPS_ONLY,
+        is_system=True,
+    )
+    workout = Workout.objects.create(
+        user=user,
+        name="Свободная тренировка",
+        started_at=datetime(2026, 6, 18, 10, 0, tzinfo=timezone.utc),
+    )
+    client = authenticate_client(user)
+
+    response = client.post(
+        f"/api/v1/workouts/{workout.id}/exercises",
+        {
+            "exercise_id": str(exercise.id),
+            "position": 1,
+            "notes": "Финишер",
+        },
+        format="json",
+    )
+
+    body = response.json()
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert body["data"]["exercise_id"] == str(exercise.id)
+    assert body["data"]["position"] == 1
+    assert body["data"]["notes"] == "Финишер"
+    assert WorkoutExercise.objects.filter(workout=workout, exercise=exercise).exists()
+
+
+@pytest.mark.django_db
+def test_add_workout_exercise_rejects_finished_workout():
+    user = User.objects.create_user(
+        email="user@example.com",
+        password="strong-password-123",
+    )
+    chest = MuscleGroup.objects.create(code="chest", name="Грудь")
+    exercise = Exercise.objects.create(
+        name="Отжимания",
+        primary_muscle_group=chest,
+        tracking_type=ExerciseTrackingType.REPS_ONLY,
+        is_system=True,
+    )
+    workout = Workout.objects.create(
+        user=user,
+        name="Завершённая тренировка",
+        status=WorkoutStatus.COMPLETED,
+        started_at=datetime(2026, 6, 18, 10, 0, tzinfo=timezone.utc),
+        finished_at=datetime(2026, 6, 18, 11, 0, tzinfo=timezone.utc),
+    )
+    client = authenticate_client(user)
+
+    response = client.post(
+        f"/api/v1/workouts/{workout.id}/exercises",
+        {
+            "exercise_id": str(exercise.id),
+            "position": 1,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+@pytest.mark.django_db
+def test_delete_workout_exercise_from_active_workout():
+    user = User.objects.create_user(
+        email="user@example.com",
+        password="strong-password-123",
+    )
+    chest = MuscleGroup.objects.create(code="chest", name="Грудь")
+    exercise = Exercise.objects.create(
+        name="Отжимания",
+        primary_muscle_group=chest,
+        tracking_type=ExerciseTrackingType.REPS_ONLY,
+        is_system=True,
+    )
+    workout = Workout.objects.create(
+        user=user,
+        name="Свободная тренировка",
+        started_at=datetime(2026, 6, 18, 10, 0, tzinfo=timezone.utc),
+    )
+    workout_exercise = WorkoutExercise.objects.create(
+        workout=workout,
+        exercise=exercise,
+        position=1,
+    )
+    WorkoutSet.objects.create(
+        workout_exercise=workout_exercise,
+        position=1,
+        repetitions=12,
+    )
+    client = authenticate_client(user)
+
+    response = client.delete(f"/api/v1/workout-exercises/{workout_exercise.id}")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["data"]["success"] is True
+    assert not WorkoutExercise.objects.filter(id=workout_exercise.id).exists()
+    assert not WorkoutSet.objects.filter(workout_exercise_id=workout_exercise.id).exists()
+
+
+@pytest.mark.django_db
 def test_get_active_workout_requires_authentication():
     client = APIClient()
 

@@ -21,6 +21,7 @@ from workouts.models import (
 )
 from workouts.records import recalculate_personal_records_for_workout
 from workouts.serializers import (
+    CreateWorkoutExerciseSerializer,
     CreateWorkoutSetSerializer,
     PersonalRecordListResponseSerializer,
     PersonalRecordSerializer,
@@ -28,8 +29,10 @@ from workouts.serializers import (
     UpdateWorkoutSetSerializer,
     WorkoutListResponseSerializer,
     WorkoutResponseSerializer,
+    WorkoutExerciseResponseSerializer,
     WorkoutSetResponseSerializer,
     WorkoutSuccessResponseSerializer,
+    WorkoutExerciseSerializer,
     WorkoutSetSerializer,
     WorkoutSerializer,
 )
@@ -211,6 +214,101 @@ class ActiveWorkoutView(APIView):
                 "meta": {},
             }
         )
+
+
+class WorkoutExerciseCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = WorkoutExerciseSerializer
+
+    @extend_schema(
+        tags=["Workouts"],
+        operation_id="workout_exercises_create",
+        request=CreateWorkoutExerciseSerializer,
+        parameters=[
+            uuid_path_parameter("workout_id", "Active workout UUID."),
+        ],
+        responses={201: WorkoutExerciseResponseSerializer},
+    )
+    def post(self, request, workout_id):
+        workout = self._get_active_user_workout(request, workout_id)
+        serializer = CreateWorkoutExerciseSerializer(
+            data=request.data,
+            context={
+                "request": request,
+                "workout": workout,
+            },
+        )
+        serializer.is_valid(raise_exception=True)
+        workout_exercise = serializer.save()
+
+        workout.server_version += 1
+        workout.save(update_fields=["server_version", "updated_at"])
+
+        response_serializer = WorkoutExerciseSerializer(workout_exercise)
+
+        return Response(
+            {
+                "data": response_serializer.data,
+                "meta": {},
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    def _get_active_user_workout(self, request, workout_id):
+        try:
+            return Workout.objects.get(
+                id=workout_id,
+                user=request.user,
+                status=WorkoutStatus.ACTIVE,
+                deleted_at__isnull=True,
+            )
+        except Workout.DoesNotExist as exc:
+            raise NotFound("Тренировка не найдена") from exc
+
+
+class WorkoutExerciseDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = WorkoutExerciseSerializer
+
+    @extend_schema(
+        tags=["Workouts"],
+        operation_id="workout_exercises_delete",
+        parameters=[
+            uuid_path_parameter("workout_exercise_id", "Workout exercise UUID."),
+        ],
+        responses={200: WorkoutSuccessResponseSerializer},
+    )
+    def delete(self, request, workout_exercise_id):
+        workout_exercise = self._get_active_user_workout_exercise(
+            request,
+            workout_exercise_id,
+        )
+        workout = workout_exercise.workout
+        workout_exercise.delete()
+
+        workout.server_version += 1
+        workout.save(update_fields=["server_version", "updated_at"])
+
+        return Response(
+            {
+                "data": {
+                    "success": True,
+                },
+                "meta": {},
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def _get_active_user_workout_exercise(self, request, workout_exercise_id):
+        try:
+            return WorkoutExercise.objects.select_related("workout").get(
+                id=workout_exercise_id,
+                workout__user=request.user,
+                workout__status=WorkoutStatus.ACTIVE,
+                workout__deleted_at__isnull=True,
+            )
+        except WorkoutExercise.DoesNotExist as exc:
+            raise NotFound("Упражнение тренировки не найдено") from exc
 
 
 class WorkoutSetCreateView(APIView):

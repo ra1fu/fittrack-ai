@@ -12,7 +12,9 @@ import type {
   NutritionDay,
   Routine,
   User,
+  UserGoal,
   Workout,
+  WorkoutExercise,
   WorkoutSet,
 } from "./types";
 
@@ -135,11 +137,11 @@ export const api = {
   me: () => apiRequest<ApiResponse<{ user: User; profile: Record<string, unknown> }>>("/me"),
   updateMe: (body: Record<string, unknown>) =>
     apiRequest<ApiResponse<Record<string, unknown>>>("/me", { method: "PATCH", body }),
-  goals: () => apiRequest<ApiResponse<Array<Record<string, unknown>>>>("/me/goals"),
+  goals: () => apiRequest<ApiResponse<UserGoal[]>>("/me/goals"),
   createGoal: (body: Record<string, unknown>) =>
-    apiRequest<ApiResponse<Record<string, unknown>>>("/me/goals", { method: "POST", body }),
+    apiRequest<ApiResponse<UserGoal>>("/me/goals", { method: "POST", body }),
   updateGoal: (id: string, body: Record<string, unknown>) =>
-    apiRequest<ApiResponse<Record<string, unknown>>>(`/me/goals/${id}`, { method: "PATCH", body }),
+    apiRequest<ApiResponse<UserGoal>>(`/me/goals/${id}`, { method: "PATCH", body }),
   dashboardSummary: (date: string) =>
     apiRequest<ApiResponse<DashboardSummary>>(`/dashboard/summary${qs({ date })}`),
   dashboardTrends: (date_from: string, date_to: string) =>
@@ -225,6 +227,15 @@ export const api = {
   activeWorkout: () => apiRequest<ApiResponse<Workout | null>>("/workouts/active"),
   startWorkout: (body: Record<string, unknown>) =>
     apiRequest<ApiResponse<Workout>>("/workouts", { method: "POST", body }),
+  addWorkoutExercise: (workoutId: string, body: Record<string, unknown>) =>
+    apiRequest<ApiResponse<WorkoutExercise>>(`/workouts/${workoutId}/exercises`, {
+      method: "POST",
+      body,
+    }),
+  deleteWorkoutExercise: (exerciseId: string) =>
+    apiRequest<ApiResponse<{ success: boolean }>>(`/workout-exercises/${exerciseId}`, {
+      method: "DELETE",
+    }),
   finishWorkout: (id: string) =>
     apiRequest<ApiResponse<{ success: boolean }>>(`/workouts/${id}/finish`, { method: "POST" }),
   cancelWorkout: (id: string) =>

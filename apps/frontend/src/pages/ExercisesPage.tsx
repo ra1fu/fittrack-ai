@@ -22,6 +22,17 @@ const schema = z.object({
   instructions: z.string().optional(),
 });
 
+const trackingOptions = [
+  ["weight_reps", "Вес + повторы"],
+  ["reps_only", "Повторы"],
+  ["time", "Время"],
+  ["distance_time", "Дистанция + время"],
+  ["bodyweight_added", "Свой вес + доп. вес"],
+  ["bodyweight_assisted", "Свой вес с поддержкой"],
+  ["calories", "Калории"],
+  ["custom", "Другое"],
+] as const;
+
 export function ExercisesPage() {
   const [search, setSearch] = useState("");
   const [muscleGroup, setMuscleGroup] = useState("");
@@ -87,10 +98,7 @@ export function ExercisesPage() {
               <Field label="Тип">
                 <Select value={trackingType} onChange={(event) => setTrackingType(event.target.value)}>
                   <option value="">Любой</option>
-                  <option value="weight_reps">Вес + повторы</option>
-                  <option value="reps">Повторы</option>
-                  <option value="duration">Время</option>
-                  <option value="distance">Дистанция</option>
+                  {trackingOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </Select>
               </Field>
             </div>
@@ -128,7 +136,11 @@ export function ExercisesPage() {
             <Field label="Оборудование">
               <Select {...form.register("equipment_id")}><option value="">Без оборудования</option>{equipment.data?.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</Select>
             </Field>
-            <Field label="Тип трекинга"><Select {...form.register("tracking_type")}><option value="weight_reps">Вес + повторы</option><option value="reps">Повторы</option><option value="duration">Время</option><option value="distance">Дистанция</option></Select></Field>
+            <Field label="Тип трекинга">
+              <Select {...form.register("tracking_type")}>
+                {trackingOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </Select>
+            </Field>
             <Field label="Описание"><Textarea {...form.register("description")} /></Field>
             {create.isSuccess ? <p className="rounded-md bg-mint p-3 text-sm font-bold text-action">Упражнение добавлено в каталог.</p> : null}
             <Button disabled={!form.formState.isValid} isLoading={create.isPending}><Plus className="h-4 w-4" aria-hidden />Создать</Button>

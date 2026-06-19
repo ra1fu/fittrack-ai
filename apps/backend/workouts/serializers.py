@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from django.utils import timezone
 
+from exercises.selectors import get_visible_exercises_for_user
 from workouts.calculations import calculate_workout_metrics
 from workouts.models import (
     PersonalRecord,
@@ -159,6 +160,11 @@ class WorkoutSuccessResponseSerializer(serializers.Serializer):
     meta = EmptyMetaSerializer()
 
 
+class WorkoutExerciseResponseSerializer(serializers.Serializer):
+    data = WorkoutExerciseSerializer()
+    meta = EmptyMetaSerializer()
+
+
 class StartWorkoutSerializer(serializers.Serializer):
     source_routine_day_id = serializers.UUIDField(required=False, allow_null=True)
     name = serializers.CharField(max_length=160, required=False, allow_blank=True)
@@ -187,6 +193,43 @@ class StartWorkoutSerializer(serializers.Serializer):
         return start_workout(
             user=self.context["request"].user,
             command=command,
+        )
+
+
+class CreateWorkoutExerciseSerializer(serializers.Serializer):
+    exercise_id = serializers.UUIDField()
+    position = serializers.IntegerField(min_value=1)
+    notes = serializers.CharField(required=False, allow_blank=True)
+    superset_group = serializers.CharField(
+        max_length=32,
+        required=False,
+        allow_blank=True,
+    )
+
+    def validate_exercise_id(self, value):
+        user = self.context["request"].user
+        visible_exercises = get_visible_exercises_for_user(user)
+
+        try:
+            return visible_exercises.get(id=value)
+        except visible_exercises.model.DoesNotExist as exc:
+            raise serializers.ValidationError("Упражнение не найдено") from exc
+
+    def validate_position(self, value):
+        workout = self.context["workout"]
+
+        if workout.exercises.filter(position=value).exists():
+            raise serializers.ValidationError("Позиция упражнения уже занята")
+
+        return value
+
+    def create(self, validated_data):
+        exercise = validated_data.pop("exercise_id")
+
+        return WorkoutExercise.objects.create(
+            workout=self.context["workout"],
+            exercise=exercise,
+            **validated_data,
         )
 
 

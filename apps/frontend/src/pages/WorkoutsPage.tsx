@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { api } from "../shared/api/client";
-import type { Workout, WorkoutSet } from "../shared/api/types";
+import type { Exercise, Workout, WorkoutSet } from "../shared/api/types";
 import { Badge } from "../shared/ui/badge";
 import { Button } from "../shared/ui/button";
 import { Card } from "../shared/ui/card";
@@ -23,6 +23,10 @@ const setSchema = z.object({
   weight: z.coerce.number().min(0).optional(),
   repetitions: z.coerce.number().int().min(1).optional(),
 });
+
+function nextPosition(items: Array<{ position: number }>) {
+  return items.reduce((max, item) => Math.max(max, item.position), 0) + 1;
+}
 
 function isWorkout(value: Workout | null): value is Workout {
   return value !== null;
@@ -110,7 +114,12 @@ export function WorkoutsPage({ activeOnly = false }: { activeOnly?: boolean }) {
                     exerciseName={exerciseNameById.get(exercise.exercise_id) ?? `Упражнение #${exercise.position}`}
                   />
                 ))}
-                {active.data.exercises.length === 0 ? <EmptyState title="Упражнений пока нет" text="Backend создаёт упражнения из программы, если стартовать по routine day." /> : null}
+                {active.data.exercises.length === 0 ? <EmptyState title="Упражнений пока нет" text="Добавьте упражнение из каталога или стартуйте тренировку по дню программы." /> : null}
+                <AddWorkoutExerciseForm
+                  exercises={exercises.data ?? []}
+                  nextPosition={nextPosition(active.data.exercises)}
+                  workoutId={active.data.id}
+                />
               </div>
             </Card>
           ) : null}
@@ -164,6 +173,90 @@ export function WorkoutsPage({ activeOnly = false }: { activeOnly?: boolean }) {
   );
 }
 
+function AddWorkoutExerciseForm({
+  exercises,
+  nextPosition,
+  workoutId,
+}: {
+  exercises: Exercise[];
+  nextPosition: number;
+  workoutId: string;
+}) {
+  const queryClient = useQueryClient();
+  const [values, setValues] = useState({
+    exercise_id: "",
+    position: String(nextPosition),
+    notes: "",
+  });
+  const add = useMutation({
+    mutationFn: () =>
+      api.addWorkoutExercise(workoutId, {
+        exercise_id: values.exercise_id,
+        position: Number(values.position),
+        notes: values.notes,
+      }),
+    onSuccess: () => {
+      setValues({ exercise_id: "", position: String(nextPosition + 1), notes: "" });
+      queryClient.invalidateQueries({ queryKey: ["active-workout"] });
+      queryClient.invalidateQueries({ queryKey: ["workouts"] });
+    },
+  });
+
+  return (
+    <form
+      className="grid gap-2 rounded-lg border border-dashed border-[#cfc8bb] bg-white/70 p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        add.mutate();
+      }}
+    >
+      <div className="grid gap-2 lg:grid-cols-[1fr_110px_1fr_auto]">
+        <Field label="Добавить упражнение">
+          <Select
+            value={values.exercise_id}
+            onChange={(event) => setValues((current) => ({ ...current, exercise_id: event.target.value }))}
+          >
+            <option value="">Выберите из каталога</option>
+            {exercises.map((exercise) => (
+              <option key={exercise.id} value={exercise.id}>{exercise.name}</option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Позиция">
+          <Input
+            min="1"
+            type="number"
+            value={values.position}
+            onChange={(event) => setValues((current) => ({ ...current, position: event.target.value }))}
+          />
+        </Field>
+        <Field label="Заметка">
+          <Input value={values.notes} onChange={(event) => setValues((current) => ({ ...current, notes: event.target.value }))} />
+        </Field>
+        <div className="flex items-end">
+          <Button
+            disabled={!values.exercise_id || Number(values.position) < 1}
+            isLoading={add.isPending}
+            type="submit"
+            variant="secondary"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Добавить
+          </Button>
+        </div>
+      </div>
+      {exercises.length === 0 ? (
+        <p className="text-sm font-bold text-muted">Каталог упражнений пуст. Сначала создайте упражнение на странице Exercises.</p>
+      ) : null}
+      {add.error ? (
+        <p className="text-sm font-bold text-coral">
+          {add.error instanceof Error ? add.error.message : "Не удалось добавить упражнение"}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
 function WorkoutExerciseCard({
   exercise,
   exerciseName,
@@ -187,9 +280,27 @@ function WorkoutExerciseCard({
     mutationFn: (id: string) => api.deleteWorkoutSet(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["active-workout"] }),
   });
+  const removeExercise = useMutation({
+    mutationFn: () => api.deleteWorkoutExercise(exercise.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["active-workout"] });
+      queryClient.invalidateQueries({ queryKey: ["workouts"] });
+    },
+  });
   return (
     <div className="rounded-lg border border-line bg-white p-3">
-      <h3 className="font-black">{exercise.position}. {exerciseName}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-black">{exercise.position}. {exerciseName}</h3>
+        <Button
+          aria-label="Удалить упражнение из тренировки"
+          isLoading={removeExercise.isPending}
+          onClick={() => removeExercise.mutate()}
+          type="button"
+          variant="ghost"
+        >
+          <Trash2 className="h-4 w-4" aria-hidden />
+        </Button>
+      </div>
       <div className="mt-2 grid gap-2">
         {exercise.sets.map((set) => (
           <WorkoutSetRow key={set.id} onDelete={(id) => remove.mutate(id)} set={set} />
