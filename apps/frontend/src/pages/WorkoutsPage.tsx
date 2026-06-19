@@ -1,14 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Dumbbell, Plus, Square, Trash2, X } from "lucide-react";
+import { Check, Clock3, Dumbbell, Flame, Plus, Square, Trash2, X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { api } from "../shared/api/client";
 import type { Workout } from "../shared/api/types";
+import { Badge } from "../shared/ui/badge";
 import { Button } from "../shared/ui/button";
 import { Card } from "../shared/ui/card";
 import { Field, Input, Textarea } from "../shared/ui/form";
 import { PageHeader } from "../shared/ui/page";
+import { SectionTitle } from "../shared/ui/section";
 import { EmptyState, ErrorState, SkeletonGrid } from "../shared/ui/state";
 
 const startSchema = z.object({ name: z.string().optional(), notes: z.string().optional() });
@@ -61,11 +63,17 @@ export function WorkoutsPage({ activeOnly = false }: { activeOnly?: boolean }) {
       <div className="grid gap-4 xl:grid-cols-[1.3fr_.8fr]">
         <section className="grid gap-4">
           {active.data ? (
-            <Card className="border-amber/50">
+            <Card className="border-amber/50 bg-[#fffaf1]">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-bold">{active.data.name || "Активная тренировка"}</h2>
-                  <p className="text-sm text-muted">Старт: {new Date(active.data.started_at).toLocaleString("ru-RU")}</p>
+                <div className="flex items-start gap-3">
+                  <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#f2e5ce] text-amber">
+                    <Flame className="h-5 w-5" aria-hidden />
+                  </div>
+                  <div>
+                    <Badge tone="warning">active</Badge>
+                    <h2 className="mt-1 text-xl font-black">{active.data.name || "Активная тренировка"}</h2>
+                    <p className="text-sm font-medium text-muted">Старт: {new Date(active.data.started_at).toLocaleString("ru-RU")}</p>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Button isLoading={finish.isPending} onClick={() => finish.mutate(active.data!.id)}><Check className="h-4 w-4" aria-hidden />Finish</Button>
@@ -81,18 +89,27 @@ export function WorkoutsPage({ activeOnly = false }: { activeOnly?: boolean }) {
             </Card>
           ) : null}
 
+          <SectionTitle eyebrow="History" title="Журнал тренировок" description="Последние сессии и их текущий статус." />
           {workouts.isLoading ? <SkeletonGrid count={4} /> : null}
           {workouts.isError ? <ErrorState error={workouts.error} onRetry={() => workouts.refetch()} /> : null}
           {workouts.data?.length === 0 ? <EmptyState title="Тренировок пока нет" /> : null}
           <div className="grid gap-3">
             {workouts.data?.map((workout) => (
-              <Card key={workout.id}>
+              <Card key={workout.id} className="transition hover:shadow-lift">
                 <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="font-bold">{workout.name || "Тренировка"}</h2>
-                    <p className="text-sm text-muted">{workout.status} · {new Date(workout.started_at).toLocaleString("ru-RU")}</p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="grid h-10 w-10 place-items-center rounded-md bg-mint text-action">
+                      <Clock3 className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="truncate font-black">{workout.name || "Тренировка"}</h2>
+                      <p className="text-sm font-medium text-muted">{new Date(workout.started_at).toLocaleString("ru-RU")}</p>
+                    </div>
                   </div>
-                  <span className="rounded-md bg-[#eee9db] px-2 py-1 text-xs font-semibold">{workout.exercises.length} упр.</span>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Badge tone={workout.status === "finished" ? "success" : "neutral"}>{workout.status}</Badge>
+                    <Badge>{workout.exercises.length} упр.</Badge>
+                  </div>
                 </div>
               </Card>
             ))}
@@ -100,10 +117,11 @@ export function WorkoutsPage({ activeOnly = false }: { activeOnly?: boolean }) {
         </section>
 
         <Card>
-          <h2 className="mb-3 text-lg font-bold">Старт тренировки</h2>
+          <SectionTitle eyebrow="Start" title="Новая тренировка" description="Начните свободную тренировку или продолжите активную." />
           <form className="grid gap-3" onSubmit={startForm.handleSubmit((values) => start.mutate(values))}>
             <Field label="Название"><Input placeholder="Верх тела" {...startForm.register("name")} /></Field>
             <Field label="Заметки"><Textarea {...startForm.register("notes")} /></Field>
+            {start.isSuccess ? <p className="rounded-md bg-mint p-3 text-sm font-bold text-action">Тренировка начата.</p> : null}
             <Button isLoading={start.isPending}><Dumbbell className="h-4 w-4" aria-hidden />Начать</Button>
           </form>
         </Card>
@@ -134,12 +152,12 @@ function WorkoutExerciseCard({ exercise }: { exercise: { id: string; position: n
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["active-workout"] }),
   });
   return (
-    <div className="rounded-md border border-line p-3">
-      <h3 className="font-semibold">Упражнение #{exercise.position}</h3>
+    <div className="rounded-lg border border-line bg-white p-3">
+      <h3 className="font-black">Упражнение #{exercise.position}</h3>
       <div className="mt-2 grid gap-2">
         {exercise.sets.map((set) => (
-          <div key={set.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-[#f5f3ec] p-2 text-sm">
-            <span>#{set.position} · {set.weight ?? 0} кг × {set.repetitions ?? 0}</span>
+          <div key={set.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-[#f5f3ec] p-2 text-sm font-medium">
+            <span className="font-bold">#{set.position} · {set.weight ?? 0} кг × {set.repetitions ?? 0}</span>
             <div className="flex gap-1">
               <Button variant="ghost" aria-label="Переключить completed" onClick={() => toggle.mutate({ id: set.id, done: !set.is_completed })}>
                 {set.is_completed ? <Check className="h-4 w-4" /> : <Square className="h-4 w-4" />}

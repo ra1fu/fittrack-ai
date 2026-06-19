@@ -17,6 +17,6 @@ describe("WorkoutsPage", () => {
         <WorkoutsPage />
       </QueryClientProvider>,
     );
-    expect(await screen.findByText("Старт тренировки")).toBeInTheDocument();
+    expect(await screen.findByText("Новая тренировка")).toBeInTheDocument();
   });
 });

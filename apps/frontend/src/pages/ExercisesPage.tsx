@@ -1,14 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Activity, Dumbbell, Plus } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { api } from "../shared/api/client";
+import { Badge } from "../shared/ui/badge";
 import { Button } from "../shared/ui/button";
 import { Card } from "../shared/ui/card";
 import { Field, Input, Select, Textarea } from "../shared/ui/form";
 import { PageHeader } from "../shared/ui/page";
+import { SectionTitle } from "../shared/ui/section";
 import { EmptyState, ErrorState, SkeletonGrid } from "../shared/ui/state";
 
 const schema = z.object({
@@ -42,27 +44,44 @@ export function ExercisesPage() {
     <>
       <PageHeader title="Exercises" description="Каталог упражнений с поиском и пользовательскими движениями." action={<Input placeholder="Поиск" value={search} onChange={(e) => setSearch(e.target.value)} />} />
       <div className="grid gap-4 xl:grid-cols-[1.3fr_.8fr]">
-        <section>
+        <section className="grid content-start gap-3">
+          <Card className="bg-ink text-white">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase text-[#9fd5ba]">Exercise library</p>
+                <h2 className="text-2xl font-black">Каталог движений</h2>
+                <p className="mt-1 text-sm font-medium text-white/65">Быстрый поиск, фильтры backend и создание своих упражнений.</p>
+              </div>
+              <div className="grid h-12 w-12 place-items-center rounded-lg bg-white/10 text-[#9fd5ba]">
+                <Activity className="h-6 w-6" aria-hidden />
+              </div>
+            </div>
+          </Card>
           {exercises.isLoading ? <SkeletonGrid count={6} /> : null}
           {exercises.isError ? <ErrorState error={exercises.error} onRetry={() => exercises.refetch()} /> : null}
           {exercises.data?.length === 0 ? <EmptyState title="Ничего не найдено" /> : null}
           <div className="grid gap-3 sm:grid-cols-2">
             {exercises.data?.map((item) => (
-              <Card key={item.id}>
+              <Card key={item.id} className="transition hover:-translate-y-0.5 hover:shadow-lift">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-bold">{item.name}</h2>
-                    <p className="text-sm text-muted">{item.primary_muscle_group?.name ?? "Без группы"} · {item.equipment?.name ?? "Без оборудования"}</p>
+                  <div className="flex min-w-0 gap-3">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-mint text-action">
+                      <Dumbbell className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="truncate font-black">{item.name}</h2>
+                      <p className="text-sm font-medium text-muted">{item.primary_muscle_group?.name ?? "Без группы"} · {item.equipment?.name ?? "Без оборудования"}</p>
+                    </div>
                   </div>
-                  <span className="rounded-md bg-[#eee9db] px-2 py-1 text-xs font-semibold">{item.tracking_type}</span>
+                  <Badge>{item.tracking_type}</Badge>
                 </div>
-                {item.description ? <p className="mt-3 text-sm text-muted">{item.description}</p> : null}
+                {item.description ? <p className="mt-3 text-sm font-medium leading-6 text-muted">{item.description}</p> : null}
               </Card>
             ))}
           </div>
         </section>
         <Card>
-          <h2 className="mb-3 text-lg font-bold">Новое упражнение</h2>
+          <SectionTitle eyebrow="Create" title="Новое упражнение" description="Добавьте своё движение, если его нет в системном каталоге." />
           <form className="grid gap-3" onSubmit={form.handleSubmit((values) => create.mutate(values))}>
             <Field label="Название" error={form.formState.errors.name?.message}><Input {...form.register("name")} /></Field>
             <Field label="Мышечная группа" error={form.formState.errors.primary_muscle_group_id?.message}>
@@ -73,6 +92,7 @@ export function ExercisesPage() {
             </Field>
             <Field label="Тип трекинга"><Select {...form.register("tracking_type")}><option value="weight_reps">Вес + повторы</option><option value="reps">Повторы</option><option value="duration">Время</option><option value="distance">Дистанция</option></Select></Field>
             <Field label="Описание"><Textarea {...form.register("description")} /></Field>
+            {create.isSuccess ? <p className="rounded-md bg-mint p-3 text-sm font-bold text-action">Упражнение добавлено в каталог.</p> : null}
             <Button disabled={!form.formState.isValid} isLoading={create.isPending}><Plus className="h-4 w-4" aria-hidden />Создать</Button>
           </form>
         </Card>
