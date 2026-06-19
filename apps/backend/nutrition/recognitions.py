@@ -17,6 +17,9 @@ from nutrition.models import (
 
 RECOGNITION_TIMEOUT_MARKER = "timeout"
 RECOGNITION_INVALID_FORMAT_MARKER = "invalid_format"
+RECOGNITION_PROVIDER_DISABLED_MARKER = "provider_disabled"
+RECOGNITION_PROVIDER_CONFIG_ERROR_MARKER = "provider_config_error"
+RECOGNITION_PROVIDER_HTTP_ERROR_MARKER = "provider_http_error"
 
 
 def create_food_recognition_from_ai_response(*, user, image_key: str, raw_ai_response):
@@ -74,6 +77,24 @@ def parse_ai_food_response(raw_ai_response) -> list[dict]:
         raise FoodRecognitionParseError(
             FoodRecognitionErrorCode.NO_RESPONSE,
             "AI не вернул ответ",
+        )
+
+    if raw_ai_response == RECOGNITION_PROVIDER_DISABLED_MARKER:
+        raise FoodRecognitionParseError(
+            FoodRecognitionErrorCode.NO_RESPONSE,
+            "AI-распознавание отключено на backend",
+        )
+
+    if raw_ai_response == RECOGNITION_PROVIDER_CONFIG_ERROR_MARKER:
+        raise FoodRecognitionParseError(
+            FoodRecognitionErrorCode.NO_RESPONSE,
+            "AI-распознавание не настроено: проверьте provider, API key и endpoint",
+        )
+
+    if raw_ai_response == RECOGNITION_PROVIDER_HTTP_ERROR_MARKER:
+        raise FoodRecognitionParseError(
+            FoodRecognitionErrorCode.NO_RESPONSE,
+            "AI API не ответил успешно: проверьте API key, модель и доступность сервиса",
         )
 
     if raw_ai_response == RECOGNITION_TIMEOUT_MARKER:

@@ -1,17 +1,26 @@
 from socket import timeout as SocketTimeout
+from urllib.error import URLError
 
 import pytest
 from django.test import override_settings
 
-from nutrition.providers import HttpJsonFoodPhotoRecognitionProvider
+from nutrition.providers import GeminiFoodPhotoRecognitionProvider, HttpJsonFoodPhotoRecognitionProvider
 from nutrition.recognitions import (
     RECOGNITION_INVALID_FORMAT_MARKER,
+    RECOGNITION_PROVIDER_CONFIG_ERROR_MARKER,
+    RECOGNITION_PROVIDER_HTTP_ERROR_MARKER,
     RECOGNITION_TIMEOUT_MARKER,
 )
 
 
 class FakeImageFile:
     content_type = "image/jpeg"
+
+    def seek(self, position):
+        self.position = position
+
+    def read(self):
+        return b"fake-image"
 
 
 class FakeResponse:
@@ -106,4 +115,33 @@ def test_http_json_provider_returns_none_without_endpoint():
         image_file=FakeImageFile(),
     )
 
-    assert response is None
+    assert response == RECOGNITION_PROVIDER_CONFIG_ERROR_MARKER
+
+
+@override_settings(GEMINI_API_KEY="")
+def test_gemini_provider_returns_config_error_without_api_key():
+    response = GeminiFoodPhotoRecognitionProvider().recognize(
+        image_key="nutrition/photo-recognitions/user/photo.jpg",
+        image_file=FakeImageFile(),
+    )
+
+    assert response == RECOGNITION_PROVIDER_CONFIG_ERROR_MARKER
+
+
+@override_settings(
+    GEMINI_API_KEY="test-key",
+    GEMINI_MODEL="gemini-3.5-flash",
+    NUTRITION_AI_PHOTO_HTTP_TIMEOUT_SECONDS=7,
+)
+def test_gemini_provider_returns_http_error_marker(monkeypatch):
+    def fake_urlopen(request, timeout):
+        raise URLError("boom")
+
+    monkeypatch.setattr("nutrition.providers.urlopen", fake_urlopen)
+
+    response = GeminiFoodPhotoRecognitionProvider().recognize(
+        image_key="nutrition/photo-recognitions/user/photo.jpg",
+        image_file=FakeImageFile(),
+    )
+
+    assert response == RECOGNITION_PROVIDER_HTTP_ERROR_MARKER

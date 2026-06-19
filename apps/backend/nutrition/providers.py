@@ -6,12 +6,18 @@ import base64
 
 from django.conf import settings
 
-from nutrition.recognitions import RECOGNITION_INVALID_FORMAT_MARKER, RECOGNITION_TIMEOUT_MARKER
+from nutrition.recognitions import (
+    RECOGNITION_INVALID_FORMAT_MARKER,
+    RECOGNITION_PROVIDER_CONFIG_ERROR_MARKER,
+    RECOGNITION_PROVIDER_DISABLED_MARKER,
+    RECOGNITION_PROVIDER_HTTP_ERROR_MARKER,
+    RECOGNITION_TIMEOUT_MARKER,
+)
 
 
 class DisabledFoodPhotoRecognitionProvider:
     def recognize(self, *, image_key: str, image_file, request_payload: dict | None = None):
-        return None
+        return RECOGNITION_PROVIDER_DISABLED_MARKER
 
 
 class RequestPayloadFoodPhotoRecognitionProvider:
@@ -23,7 +29,7 @@ class HttpJsonFoodPhotoRecognitionProvider:
     def recognize(self, *, image_key: str, image_file, request_payload: dict | None = None):
         endpoint = settings.NUTRITION_AI_PHOTO_HTTP_ENDPOINT
         if not endpoint:
-            return None
+            return RECOGNITION_PROVIDER_CONFIG_ERROR_MARKER
 
         payload = {
             "image_key": image_key,
@@ -48,7 +54,7 @@ class HttpJsonFoodPhotoRecognitionProvider:
         except (SocketTimeout, TimeoutError):
             return RECOGNITION_TIMEOUT_MARKER
         except (HTTPError, URLError):
-            return None
+            return RECOGNITION_PROVIDER_HTTP_ERROR_MARKER
 
         try:
             return json.loads(response_body)
@@ -104,7 +110,7 @@ def _build_headers() -> dict:
 class GeminiFoodPhotoRecognitionProvider:
     def recognize(self, *, image_key: str, image_file, request_payload: dict | None = None):
         if not settings.GEMINI_API_KEY:
-            return None
+            return RECOGNITION_PROVIDER_CONFIG_ERROR_MARKER
 
         image_file.seek(0)
         image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
@@ -162,7 +168,7 @@ class GeminiFoodPhotoRecognitionProvider:
         except (SocketTimeout, TimeoutError):
             return RECOGNITION_TIMEOUT_MARKER
         except (HTTPError, URLError):
-            return None
+            return RECOGNITION_PROVIDER_HTTP_ERROR_MARKER
 
         try:
             gemini_response = json.loads(response_body)

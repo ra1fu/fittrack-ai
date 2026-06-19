@@ -1516,6 +1516,7 @@ def test_upload_food_recognition_photo_with_disabled_provider_returns_failed_dra
     assert response.status_code == status.HTTP_201_CREATED
     assert body["data"]["status"] == FoodRecognitionStatus.FAILED
     assert body["data"]["error_code"] == FoodRecognitionErrorCode.NO_RESPONSE
+    assert body["data"]["error_message"] == "AI-распознавание отключено на backend"
     assert default_storage.exists(body["data"]["image_key"]) is False
 
 
