@@ -24,10 +24,20 @@ const schema = z.object({
 
 export function ExercisesPage() {
   const [search, setSearch] = useState("");
+  const [muscleGroup, setMuscleGroup] = useState("");
+  const [equipmentFilter, setEquipmentFilter] = useState("");
+  const [trackingType, setTrackingType] = useState("");
   const queryClient = useQueryClient();
   const exercises = useQuery({
-    queryKey: ["exercises", search],
-    queryFn: () => api.exercises({ search, limit: 50 }).then((response) => response.data),
+    queryKey: ["exercises", search, muscleGroup, equipmentFilter, trackingType],
+    queryFn: () =>
+      api.exercises({
+        search,
+        muscle_group: muscleGroup,
+        equipment: equipmentFilter,
+        tracking_type: trackingType,
+        limit: 50,
+      }).then((response) => response.data),
   });
   const muscles = useQuery({ queryKey: ["muscle-groups"], queryFn: () => api.muscleGroups().then((r) => r.data) });
   const equipment = useQuery({ queryKey: ["equipment"], queryFn: () => api.equipment().then((r) => r.data) });
@@ -42,7 +52,7 @@ export function ExercisesPage() {
 
   return (
     <>
-      <PageHeader title="Exercises" description="Каталог упражнений с поиском и пользовательскими движениями." action={<Input placeholder="Поиск" value={search} onChange={(e) => setSearch(e.target.value)} />} />
+      <PageHeader title="Exercises" description="Каталог упражнений с поиском, фильтрами и пользовательскими движениями." />
       <div className="grid gap-4 xl:grid-cols-[1.3fr_.8fr]">
         <section className="grid content-start gap-3">
           <Card className="bg-ink text-white">
@@ -55,6 +65,34 @@ export function ExercisesPage() {
               <div className="grid h-12 w-12 place-items-center rounded-lg bg-white/10 text-[#9fd5ba]">
                 <Activity className="h-6 w-6" aria-hidden />
               </div>
+            </div>
+          </Card>
+          <Card>
+            <div className="grid gap-3 md:grid-cols-4">
+              <Field label="Поиск">
+                <Input placeholder="Жим, присед..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              </Field>
+              <Field label="Мышцы">
+                <Select value={muscleGroup} onChange={(event) => setMuscleGroup(event.target.value)}>
+                  <option value="">Все группы</option>
+                  {muscles.data?.map((m) => <option key={m.id} value={m.code}>{m.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Оборудование">
+                <Select value={equipmentFilter} onChange={(event) => setEquipmentFilter(event.target.value)}>
+                  <option value="">Любое</option>
+                  {equipment.data?.map((e) => <option key={e.id} value={e.code}>{e.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Тип">
+                <Select value={trackingType} onChange={(event) => setTrackingType(event.target.value)}>
+                  <option value="">Любой</option>
+                  <option value="weight_reps">Вес + повторы</option>
+                  <option value="reps">Повторы</option>
+                  <option value="duration">Время</option>
+                  <option value="distance">Дистанция</option>
+                </Select>
+              </Field>
             </div>
           </Card>
           {exercises.isLoading ? <SkeletonGrid count={6} /> : null}

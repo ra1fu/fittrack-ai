@@ -72,7 +72,7 @@ export function AppLayout() {
 
   return (
     <div className="dashboard-grid min-h-screen bg-canvas text-ink">
-      <aside className="fixed left-0 top-0 hidden h-screen w-68 border-r border-line bg-[#fbfaf6]/95 p-4 backdrop-blur lg:block">
+      <aside className="fixed left-0 top-0 hidden h-screen w-64 border-r border-line bg-[#fbfaf6]/95 p-4 backdrop-blur lg:block">
         <div className="mb-6 rounded-lg border border-line/70 bg-white p-3 shadow-soft">
           <div className="flex items-center gap-3">
             <div className="grid h-11 w-11 place-items-center rounded-lg bg-ink text-white shadow-soft">
@@ -116,18 +116,18 @@ export function AppLayout() {
             Активная тренировка
           </button>
         ) : null}
-        <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+        <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 lg:px-8 lg:py-8">
           <Outlet />
         </div>
       </main>
 
-      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-white/95 px-2 pt-2 shadow-[0_-12px_30px_rgba(31,39,36,0.09)] backdrop-blur lg:hidden">
+      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-white/95 px-1.5 pt-1.5 shadow-[0_-12px_30px_rgba(31,39,36,0.09)] backdrop-blur lg:hidden">
         {mobileNav.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             className={({ isActive }) =>
-              `grid min-h-14 place-items-center rounded-md text-[11px] font-bold transition ${
+              `flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-black transition ${
                 isActive ? "bg-mint text-action" : "text-muted"
               }`
             }

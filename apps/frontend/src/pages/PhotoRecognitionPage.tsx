@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Bot, CalendarCheck, Camera, CheckCircle2, Sparkles, UploadCloud } from "lucide-react";
+import { AlertTriangle, Bot, CalendarCheck, Camera, CheckCircle2, Save, Sparkles, Trash2, UploadCloud } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../shared/api/client";
 import { todayIso } from "../shared/lib/utils";
 import { Badge } from "../shared/ui/badge";
@@ -11,7 +12,178 @@ import { PageHeader } from "../shared/ui/page";
 import { SectionTitle } from "../shared/ui/section";
 import { EmptyState, ErrorState, SkeletonGrid } from "../shared/ui/state";
 
+type RecognitionFood = Record<string, unknown>;
+
+function textValue(value: unknown, fallback = "") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+}
+
+function totalsValue(food: RecognitionFood, key: string) {
+  const totals = food.totals;
+  if (!totals || typeof totals !== "object") return "0";
+  return textValue((totals as Record<string, unknown>)[key], "0");
+}
+
+function RecognitionFoodEditor({ food, editable }: { food: RecognitionFood; editable: boolean }) {
+  const queryClient = useQueryClient();
+  const [saved, setSaved] = useState(false);
+  const [values, setValues] = useState({
+    corrected_name: textValue(food.corrected_name ?? food.ai_name),
+    corrected_weight_g: textValue(food.corrected_weight_g ?? food.ai_weight_g, "100"),
+    corrected_calories_per_100g: textValue(food.corrected_calories_per_100g ?? food.ai_calories_per_100g, "0"),
+    corrected_protein_per_100g: textValue(food.corrected_protein_per_100g ?? food.ai_protein_per_100g, "0"),
+    corrected_fat_per_100g: textValue(food.corrected_fat_per_100g ?? food.ai_fat_per_100g, "0"),
+    corrected_carbs_per_100g: textValue(food.corrected_carbs_per_100g ?? food.ai_carbs_per_100g, "0"),
+  });
+
+  const save = useMutation({
+    mutationFn: () =>
+      api.updateRecognitionItem(String(food.id), {
+        corrected_name: values.corrected_name.trim(),
+        corrected_weight_g: values.corrected_weight_g,
+        corrected_calories_per_100g: values.corrected_calories_per_100g,
+        corrected_protein_per_100g: values.corrected_protein_per_100g,
+        corrected_fat_per_100g: values.corrected_fat_per_100g,
+        corrected_carbs_per_100g: values.corrected_carbs_per_100g,
+      }),
+    onSuccess: () => {
+      setSaved(true);
+      queryClient.invalidateQueries({ queryKey: ["photo-recognitions"] });
+    },
+  });
+  const remove = useMutation({
+    mutationFn: () => api.deleteRecognitionItem(String(food.id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photo-recognitions"] }),
+  });
+
+  const setField = (field: keyof typeof values, value: string) => {
+    setSaved(false);
+    setValues((current) => ({ ...current, [field]: value }));
+  };
+
+  return (
+    <form
+      className="grid gap-3 rounded-md border border-line bg-white p-3 text-sm"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (editable) save.mutate();
+      }}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-black uppercase text-muted">Позиция #{textValue(food.position, "1")}</p>
+          <p className="font-black">{values.corrected_name || "Без названия"}</p>
+          <p className="mt-1 text-xs font-bold text-muted">AI confidence: {textValue(food.ai_confidence, "0")}</p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs font-black text-steel">
+          <span className="rounded-md bg-oat px-2 py-1">{totalsValue(food, "calories")} ккал</span>
+          <span className="rounded-md bg-oat px-2 py-1">Б {totalsValue(food, "protein")}</span>
+          <span className="rounded-md bg-oat px-2 py-1">Ж {totalsValue(food, "fat")}</span>
+          <span className="rounded-md bg-oat px-2 py-1">У {totalsValue(food, "carbs")}</span>
+        </div>
+      </div>
+      <div className="grid gap-2 md:grid-cols-[1.3fr_.7fr]">
+        <Field label="Название">
+          <Input
+            disabled={!editable}
+            value={values.corrected_name}
+            onChange={(event) => setField("corrected_name", event.target.value)}
+          />
+        </Field>
+        <Field label="Вес, г">
+          <Input
+            disabled={!editable}
+            min="0.01"
+            step="0.01"
+            type="number"
+            value={values.corrected_weight_g}
+            onChange={(event) => setField("corrected_weight_g", event.target.value)}
+          />
+        </Field>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <Field label="Ккал / 100 г">
+          <Input
+            disabled={!editable}
+            min="0"
+            step="0.01"
+            type="number"
+            value={values.corrected_calories_per_100g}
+            onChange={(event) => setField("corrected_calories_per_100g", event.target.value)}
+          />
+        </Field>
+        <Field label="Белки / 100 г">
+          <Input
+            disabled={!editable}
+            min="0"
+            step="0.01"
+            type="number"
+            value={values.corrected_protein_per_100g}
+            onChange={(event) => setField("corrected_protein_per_100g", event.target.value)}
+          />
+        </Field>
+        <Field label="Жиры / 100 г">
+          <Input
+            disabled={!editable}
+            min="0"
+            step="0.01"
+            type="number"
+            value={values.corrected_fat_per_100g}
+            onChange={(event) => setField("corrected_fat_per_100g", event.target.value)}
+          />
+        </Field>
+        <Field label="Углеводы / 100 г">
+          <Input
+            disabled={!editable}
+            min="0"
+            step="0.01"
+            type="number"
+            value={values.corrected_carbs_per_100g}
+            onChange={(event) => setField("corrected_carbs_per_100g", event.target.value)}
+          />
+        </Field>
+      </div>
+      {editable ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            disabled={!values.corrected_name.trim() || Number(values.corrected_weight_g) <= 0}
+            isLoading={save.isPending}
+            type="submit"
+            variant="secondary"
+          >
+            <Save className="h-4 w-4" aria-hidden />
+            Сохранить правки
+          </Button>
+          {saved ? <span className="text-sm font-bold text-action">Правки сохранены.</span> : null}
+          {save.error ? (
+            <span className="text-sm font-bold text-coral">
+              {save.error instanceof Error ? save.error.message : "Не удалось сохранить позицию"}
+            </span>
+          ) : null}
+          <Button
+            aria-label="Удалить позицию распознавания"
+            isLoading={remove.isPending}
+            onClick={() => remove.mutate()}
+            type="button"
+            variant="danger"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden />
+            Удалить
+          </Button>
+          {remove.error ? (
+            <span className="text-sm font-bold text-coral">
+              {remove.error instanceof Error ? remove.error.message : "Не удалось удалить позицию"}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </form>
+  );
+}
+
 export function PhotoRecognitionPage() {
+  const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [mealDate, setMealDate] = useState(todayIso());
   const [mealType, setMealType] = useState("breakfast");
@@ -33,7 +205,10 @@ export function PhotoRecognitionPage() {
   });
   const confirm = useMutation({
     mutationFn: (id: string) => api.confirmRecognition(id, { meal_date: mealDate, meal_type: mealType }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photo-recognitions"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["photo-recognitions"] });
+      navigate(`/nutrition?date=${mealDate}`);
+    },
   });
 
   return (
@@ -126,10 +301,7 @@ export function PhotoRecognitionPage() {
                 </div>
                 <div className="mt-3 grid gap-2">
                   {(Array.isArray(item.items) ? item.items : []).map((food: Record<string, unknown>) => (
-                    <div key={String(food.id)} className="rounded-md border border-line bg-white p-3 text-sm">
-                      <span className="font-bold">{String(food.corrected_name ?? food.ai_name)}</span>
-                      <span className="font-medium text-muted"> · {String(food.corrected_weight_g ?? food.ai_weight_g)} г</span>
-                    </div>
+                    <RecognitionFoodEditor key={String(food.id)} food={food} editable={item.status === "draft"} />
                   ))}
                 </div>
               </div>

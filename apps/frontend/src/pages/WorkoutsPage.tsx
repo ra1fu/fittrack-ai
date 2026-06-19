@@ -1,19 +1,24 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Clock3, Dumbbell, Flame, Plus, Square, Trash2, X } from "lucide-react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { api } from "../shared/api/client";
-import type { Workout } from "../shared/api/types";
+import type { Workout, WorkoutSet } from "../shared/api/types";
 import { Badge } from "../shared/ui/badge";
 import { Button } from "../shared/ui/button";
 import { Card } from "../shared/ui/card";
-import { Field, Input, Textarea } from "../shared/ui/form";
+import { Field, Input, Select, Textarea } from "../shared/ui/form";
 import { PageHeader } from "../shared/ui/page";
 import { SectionTitle } from "../shared/ui/section";
 import { EmptyState, ErrorState, SkeletonGrid } from "../shared/ui/state";
 
-const startSchema = z.object({ name: z.string().optional(), notes: z.string().optional() });
+const startSchema = z.object({
+  source_routine_day_id: z.string().optional(),
+  name: z.string().optional(),
+  notes: z.string().optional(),
+});
 const setSchema = z.object({
   weight: z.coerce.number().min(0).optional(),
   repetitions: z.coerce.number().int().min(1).optional(),
@@ -33,9 +38,18 @@ export function WorkoutsPage({ activeOnly = false }: { activeOnly?: boolean }) {
         : api.workouts().then((r) => r.data),
   });
   const active = useQuery({ queryKey: ["active-workout"], queryFn: () => api.activeWorkout().then((r) => r.data) });
+  const routines = useQuery({ queryKey: ["routines", "workout-start"], queryFn: () => api.routines().then((r) => r.data) });
+  const exercises = useQuery({
+    queryKey: ["exercises", "workout-names"],
+    queryFn: () => api.exercises({ limit: 100 }).then((response) => response.data),
+  });
   const startForm = useForm<z.infer<typeof startSchema>>({ resolver: zodResolver(startSchema), mode: "onChange" });
   const start = useMutation({
-    mutationFn: (values: z.infer<typeof startSchema>) => api.startWorkout(values),
+    mutationFn: (values: z.infer<typeof startSchema>) =>
+      api.startWorkout({
+        ...values,
+        source_routine_day_id: values.source_routine_day_id || null,
+      }),
     onSuccess: () => {
       startForm.reset();
       queryClient.invalidateQueries({ queryKey: ["workouts"] });
@@ -56,6 +70,14 @@ export function WorkoutsPage({ activeOnly = false }: { activeOnly?: boolean }) {
       queryClient.invalidateQueries({ queryKey: ["active-workout"] });
     },
   });
+  const routineDayOptions =
+    routines.data?.flatMap((routine) =>
+      routine.days.map((day) => ({
+        id: day.id,
+        label: `${routine.name} · ${day.position}. ${day.name}`,
+      })),
+    ) ?? [];
+  const exerciseNameById = new Map(exercises.data?.map((exercise) => [exercise.id, exercise.name]) ?? []);
 
   return (
     <>
@@ -82,7 +104,11 @@ export function WorkoutsPage({ activeOnly = false }: { activeOnly?: boolean }) {
               </div>
               <div className="mt-4 grid gap-3">
                 {active.data.exercises.map((exercise) => (
-                  <WorkoutExerciseCard key={exercise.id} exercise={exercise} />
+                  <WorkoutExerciseCard
+                    key={exercise.id}
+                    exercise={exercise}
+                    exerciseName={exerciseNameById.get(exercise.exercise_id) ?? `Упражнение #${exercise.position}`}
+                  />
                 ))}
                 {active.data.exercises.length === 0 ? <EmptyState title="Упражнений пока нет" text="Backend создаёт упражнения из программы, если стартовать по routine day." /> : null}
               </div>
@@ -119,6 +145,14 @@ export function WorkoutsPage({ activeOnly = false }: { activeOnly?: boolean }) {
         <Card>
           <SectionTitle eyebrow="Start" title="Новая тренировка" description="Начните свободную тренировку или продолжите активную." />
           <form className="grid gap-3" onSubmit={startForm.handleSubmit((values) => start.mutate(values))}>
+            <Field label="День программы">
+              <Select {...startForm.register("source_routine_day_id")}>
+                <option value="">Свободная тренировка</option>
+                {routineDayOptions.map((day) => (
+                  <option key={day.id} value={day.id}>{day.label}</option>
+                ))}
+              </Select>
+            </Field>
             <Field label="Название"><Input placeholder="Верх тела" {...startForm.register("name")} /></Field>
             <Field label="Заметки"><Textarea {...startForm.register("notes")} /></Field>
             {start.isSuccess ? <p className="rounded-md bg-mint p-3 text-sm font-bold text-action">Тренировка начата.</p> : null}
@@ -130,7 +164,13 @@ export function WorkoutsPage({ activeOnly = false }: { activeOnly?: boolean }) {
   );
 }
 
-function WorkoutExerciseCard({ exercise }: { exercise: { id: string; position: number; sets: Array<{ id: string; position: number; weight: string | null; repetitions: number | null; is_completed: boolean }> } }) {
+function WorkoutExerciseCard({
+  exercise,
+  exerciseName,
+}: {
+  exercise: Workout["exercises"][number];
+  exerciseName: string;
+}) {
   const queryClient = useQueryClient();
   const form = useForm<z.infer<typeof setSchema>>({ resolver: zodResolver(setSchema), mode: "onChange" });
   const add = useMutation({
@@ -143,35 +183,89 @@ function WorkoutExerciseCard({ exercise }: { exercise: { id: string; position: n
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["active-workout"] }),
   });
-  const toggle = useMutation({
-    mutationFn: ({ id, done }: { id: string; done: boolean }) => api.updateWorkoutSet(id, { is_completed: done }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["active-workout"] }),
-  });
   const remove = useMutation({
     mutationFn: (id: string) => api.deleteWorkoutSet(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["active-workout"] }),
   });
   return (
     <div className="rounded-lg border border-line bg-white p-3">
-      <h3 className="font-black">Упражнение #{exercise.position}</h3>
+      <h3 className="font-black">{exercise.position}. {exerciseName}</h3>
       <div className="mt-2 grid gap-2">
         {exercise.sets.map((set) => (
-          <div key={set.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-[#f5f3ec] p-2 text-sm font-medium">
-            <span className="font-bold">#{set.position} · {set.weight ?? 0} кг × {set.repetitions ?? 0}</span>
-            <div className="flex gap-1">
-              <Button variant="ghost" aria-label="Переключить completed" onClick={() => toggle.mutate({ id: set.id, done: !set.is_completed })}>
-                {set.is_completed ? <Check className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-              </Button>
-              <Button variant="ghost" aria-label="Удалить подход" onClick={() => remove.mutate(set.id)}><Trash2 className="h-4 w-4" /></Button>
-            </div>
-          </div>
+          <WorkoutSetRow key={set.id} onDelete={(id) => remove.mutate(id)} set={set} />
         ))}
       </div>
-      <form className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2" onSubmit={form.handleSubmit((values) => add.mutate(values))}>
+      <form className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]" onSubmit={form.handleSubmit((values) => add.mutate(values))}>
         <Input aria-label="Вес" type="number" step="0.5" placeholder="Кг" {...form.register("weight")} />
         <Input aria-label="Повторы" type="number" placeholder="Повт." {...form.register("repetitions")} />
-        <Button aria-label="Добавить подход" isLoading={add.isPending}><Plus className="h-4 w-4" /></Button>
+        <Button className="sm:px-3" aria-label="Добавить подход" isLoading={add.isPending}><Plus className="h-4 w-4" /></Button>
       </form>
+    </div>
+  );
+}
+
+function WorkoutSetRow({ set, onDelete }: { set: WorkoutSet; onDelete: (id: string) => void }) {
+  const queryClient = useQueryClient();
+  const [weight, setWeight] = useState(set.weight ?? "");
+  const [repetitions, setRepetitions] = useState(String(set.repetitions ?? ""));
+  const update = useMutation({
+    mutationFn: (body: Record<string, unknown>) => api.updateWorkoutSet(set.id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["active-workout"] });
+      queryClient.invalidateQueries({ queryKey: ["workouts"] });
+    },
+  });
+
+  return (
+    <div className="grid gap-2 rounded-md bg-[#f5f3ec] p-2 text-sm font-medium sm:grid-cols-[80px_1fr_1fr_auto] sm:items-end">
+      <div>
+        <p className="text-xs font-black uppercase text-muted">Set</p>
+        <p className="font-black">#{set.position}</p>
+      </div>
+      <Field label="Кг">
+        <Input
+          min="0"
+          step="0.5"
+          type="number"
+          value={weight}
+          onChange={(event) => setWeight(event.target.value)}
+        />
+      </Field>
+      <Field label="Повторы">
+        <Input
+          min="1"
+          type="number"
+          value={repetitions}
+          onChange={(event) => setRepetitions(event.target.value)}
+        />
+      </Field>
+      <div className="grid grid-cols-3 gap-1">
+        <Button
+          aria-label="Сохранить подход"
+          isLoading={update.isPending}
+          onClick={() =>
+            update.mutate({
+              weight: weight === "" ? null : weight,
+              repetitions: repetitions === "" ? null : Number(repetitions),
+            })
+          }
+          type="button"
+          variant="secondary"
+        >
+          <Check className="h-4 w-4" aria-hidden />
+        </Button>
+        <Button
+          aria-label="Переключить completed"
+          onClick={() => update.mutate({ is_completed: !set.is_completed })}
+          type="button"
+          variant="ghost"
+        >
+          {set.is_completed ? <Check className="h-4 w-4" aria-hidden /> : <Square className="h-4 w-4" aria-hidden />}
+        </Button>
+        <Button aria-label="Удалить подход" onClick={() => onDelete(set.id)} type="button" variant="ghost">
+          <Trash2 className="h-4 w-4" aria-hidden />
+        </Button>
+      </div>
     </div>
   );
 }

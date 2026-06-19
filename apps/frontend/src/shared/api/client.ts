@@ -175,6 +175,10 @@ export const api = {
       `/nutrition/photo-recognition-items/${id}`,
       { method: "PATCH", body },
     ),
+  deleteRecognitionItem: (id: string) =>
+    apiRequest<ApiResponse<{ success: boolean }>>(`/nutrition/photo-recognition-items/${id}`, {
+      method: "DELETE",
+    }),
   confirmRecognition: (id: string, body: Record<string, unknown>) =>
     apiRequest<ApiResponse<Record<string, unknown>>>(
       `/nutrition/photo-recognitions/${id}/confirm`,
@@ -182,13 +186,41 @@ export const api = {
     ),
   exercises: (params: Record<string, string | number | undefined>) =>
     apiRequest<ApiResponse<Exercise[], CountMeta>>(`/exercises${qs(params)}`),
-  muscleGroups: () => apiRequest<ApiResponse<Array<{ id: string; name: string }>>>("/muscle-groups"),
-  equipment: () => apiRequest<ApiResponse<Array<{ id: string; name: string }>>>("/equipment"),
+  muscleGroups: () => apiRequest<ApiResponse<Array<{ id: string; code: string; name: string }>>>("/muscle-groups"),
+  equipment: () => apiRequest<ApiResponse<Array<{ id: string; code: string; name: string }>>>("/equipment"),
   createExercise: (body: Record<string, unknown>) =>
     apiRequest<ApiResponse<Exercise>>("/exercises", { method: "POST", body }),
   routines: () => apiRequest<ApiResponse<Routine[], CountMeta>>("/routines"),
   createRoutine: (body: Record<string, unknown>) =>
     apiRequest<ApiResponse<Routine>>("/routines", { method: "POST", body }),
+  createRoutineDay: (routineId: string, body: Record<string, unknown>) =>
+    apiRequest<ApiResponse<Routine["days"][number]>>(`/routines/${routineId}/days`, {
+      method: "POST",
+      body,
+    }),
+  updateRoutineDay: (dayId: string, body: Record<string, unknown>) =>
+    apiRequest<ApiResponse<Routine["days"][number]>>(`/routine-days/${dayId}`, {
+      method: "PATCH",
+      body,
+    }),
+  deleteRoutineDay: (dayId: string) =>
+    apiRequest<ApiResponse<{ success: boolean }>>(`/routine-days/${dayId}`, {
+      method: "DELETE",
+    }),
+  createRoutineExercise: (dayId: string, body: Record<string, unknown>) =>
+    apiRequest<ApiResponse<Routine["days"][number]["exercises"][number]>>(
+      `/routine-days/${dayId}/exercises`,
+      { method: "POST", body },
+    ),
+  updateRoutineExercise: (exerciseId: string, body: Record<string, unknown>) =>
+    apiRequest<ApiResponse<Routine["days"][number]["exercises"][number]>>(
+      `/routine-exercises/${exerciseId}`,
+      { method: "PATCH", body },
+    ),
+  deleteRoutineExercise: (exerciseId: string) =>
+    apiRequest<ApiResponse<{ success: boolean }>>(`/routine-exercises/${exerciseId}`, {
+      method: "DELETE",
+    }),
   workouts: () => apiRequest<ApiResponse<Workout[], CountMeta>>("/workouts"),
   activeWorkout: () => apiRequest<ApiResponse<Workout | null>>("/workouts/active"),
   startWorkout: (body: Record<string, unknown>) =>

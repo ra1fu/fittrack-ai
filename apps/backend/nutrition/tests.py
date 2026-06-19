@@ -13,6 +13,7 @@ from nutrition.models import (
     Food,
     FoodRecognition,
     FoodRecognitionErrorCode,
+    FoodRecognitionItem,
     FoodRecognitionStatus,
     FoodSource,
     Meal,
@@ -1184,6 +1185,53 @@ def test_patch_food_recognition_item_marks_user_corrected_and_recalculates_total
 
 
 @pytest.mark.django_db
+def test_delete_food_recognition_item_removes_draft_item():
+    user = User.objects.create_user(
+        email="user@example.com",
+        password="strong-password-123",
+    )
+    client = authenticate_client(user)
+    create_response = client.post(
+        "/api/v1/nutrition/photo-recognitions",
+        {
+            "image_key": "private/users/user/photo-1.jpg",
+            "raw_ai_response": {
+                "items": [
+                    {
+                        "name": "Омлет",
+                        "confidence": 0.84,
+                        "weight_g": 180,
+                        "calories_per_100g": 154,
+                        "protein_per_100g": 11,
+                        "fat_per_100g": 12,
+                        "carbs_per_100g": 1,
+                    },
+                    {
+                        "name": "Хлеб",
+                        "confidence": 0.75,
+                        "weight_g": 40,
+                        "calories_per_100g": 250,
+                        "protein_per_100g": 8,
+                        "fat_per_100g": 3,
+                        "carbs_per_100g": 48,
+                    },
+                ]
+            },
+        },
+        format="json",
+    )
+    recognition_item_id = create_response.json()["data"]["items"][0]["id"]
+
+    response = client.delete(
+        f"/api/v1/nutrition/photo-recognition-items/{recognition_item_id}",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["data"]["success"] is True
+    assert not FoodRecognitionItem.objects.filter(id=recognition_item_id).exists()
+
+
+@pytest.mark.django_db
 def test_confirm_food_recognition_creates_meal_items_from_corrected_values():
     user = User.objects.create_user(
         email="user@example.com",
@@ -1388,6 +1436,52 @@ def test_patch_food_recognition_item_rejects_confirmed_recognition():
             "corrected_weight_g": "200.00",
         },
         format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.django_db
+def test_delete_food_recognition_item_rejects_confirmed_recognition():
+    user = User.objects.create_user(
+        email="user@example.com",
+        password="strong-password-123",
+    )
+    client = authenticate_client(user)
+    create_response = client.post(
+        "/api/v1/nutrition/photo-recognitions",
+        {
+            "image_key": "private/users/user/photo-1.jpg",
+            "raw_ai_response": {
+                "items": [
+                    {
+                        "name": "Рис",
+                        "confidence": 0.70,
+                        "weight_g": 100,
+                        "calories_per_100g": 130,
+                        "protein_per_100g": 2.7,
+                        "fat_per_100g": 0.3,
+                        "carbs_per_100g": 28,
+                    }
+                ]
+            },
+        },
+        format="json",
+    )
+    recognition_id = create_response.json()["data"]["id"]
+    recognition_item_id = create_response.json()["data"]["items"][0]["id"]
+    client.post(
+        f"/api/v1/nutrition/photo-recognitions/{recognition_id}/confirm",
+        {
+            "meal_date": "2026-06-18",
+            "meal_type": MealType.LUNCH,
+        },
+        format="json",
+    )
+
+    response = client.delete(
+        f"/api/v1/nutrition/photo-recognition-items/{recognition_item_id}",
     )
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST

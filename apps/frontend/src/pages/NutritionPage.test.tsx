@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NutritionPage } from "./NutritionPage";
 
@@ -16,7 +17,9 @@ describe("NutritionPage", () => {
   it("renders nutrition totals", async () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <NutritionPage />
+        <MemoryRouter>
+          <NutritionPage />
+        </MemoryRouter>
       </QueryClientProvider>,
     );
     expect(await screen.findByText("Nutrition")).toBeInTheDocument();

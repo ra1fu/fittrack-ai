@@ -1,15 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Apple, Coffee, Drumstick, Moon, Plus, Search, Soup, Trash2 } from "lucide-react";
+import { Apple, Coffee, Drumstick, Moon, Plus, Save, Search, Soup, Trash2 } from "lucide-react";
 import { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useSearchParams } from "react-router-dom";
 import { z } from "zod";
 import { api } from "../shared/api/client";
+import type { MealItem } from "../shared/api/types";
 import { moneylessNumber, todayIso } from "../shared/lib/utils";
 import { Button } from "../shared/ui/button";
 import { Card } from "../shared/ui/card";
-import { Field, Input } from "../shared/ui/form";
+import { Field, Input, Select } from "../shared/ui/form";
 import { PageHeader } from "../shared/ui/page";
 import { EmptyState, ErrorState, SkeletonGrid } from "../shared/ui/state";
 
@@ -29,8 +31,10 @@ const foodSchema = z.object({
 });
 
 export function NutritionPage() {
-  const [date, setDate] = useState(todayIso());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [date, setDate] = useState(() => searchParams.get("date") ?? todayIso());
   const [search, setSearch] = useState("");
+  const [targetMealId, setTargetMealId] = useState("");
   const queryClient = useQueryClient();
   const day = useQuery({
     queryKey: ["nutrition-day", date],
@@ -42,7 +46,10 @@ export function NutritionPage() {
   });
   const createMeal = useMutation({
     mutationFn: (meal_type: string) => api.createMeal({ meal_date: date, meal_type }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nutrition-day", date] }),
+    onSuccess: (response) => {
+      setTargetMealId(response.data.id);
+      queryClient.invalidateQueries({ queryKey: ["nutrition-day", date] });
+    },
   });
   const addItem = useMutation({
     mutationFn: ({ mealId, foodId }: { mealId: string; foodId: string }) =>
@@ -54,14 +61,31 @@ export function NutritionPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nutrition-day", date] }),
   });
 
-  const firstMeal = day.data?.meals[0];
+  const mealsForDay = useMemo(() => day.data?.meals ?? [], [day.data?.meals]);
+  const targetMeal = mealsForDay.find((meal) => meal.id === targetMealId);
+
+  useEffect(() => {
+    if (!day.data) return;
+    if (mealsForDay.length === 0) {
+      setTargetMealId("");
+      return;
+    }
+    if (!mealsForDay.some((meal) => meal.id === targetMealId)) {
+      setTargetMealId(mealsForDay[0].id);
+    }
+  }, [day.data, mealsForDay, targetMealId]);
+
+  const changeDate = (value: string) => {
+    setDate(value);
+    setSearchParams({ date: value });
+  };
 
   return (
     <>
       <PageHeader
         title="Nutrition"
         description="Дневник питания с пересчётом калорий и БЖУ."
-        action={<Input aria-label="Дата" type="date" value={date} onChange={(event) => setDate(event.target.value)} />}
+        action={<Input aria-label="Дата" type="date" value={date} onChange={(event) => changeDate(event.target.value)} />}
       />
 
       {day.isLoading ? <SkeletonGrid count={4} /> : null}
@@ -111,15 +135,7 @@ export function NutritionPage() {
                   {meal?.items.length ? (
                     <div className="grid gap-2">
                       {meal.items.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-line bg-[#fbfaf6] p-3">
-                          <div className="min-w-0">
-                            <p className="truncate font-bold">{item.display_name_snapshot}</p>
-                            <p className="text-sm font-medium text-muted">{moneylessNumber(item.weight_g)} г · {moneylessNumber(item.calories_snapshot)} ккал</p>
-                          </div>
-                          <Button aria-label="Удалить продукт" variant="ghost" onClick={() => deleteItem.mutate(item.id)}>
-                            <Trash2 className="h-4 w-4" aria-hidden />
-                          </Button>
-                        </div>
+                        <MealItemRow key={item.id} date={date} item={item} onDelete={(id) => deleteItem.mutate(id)} />
                       ))}
                     </div>
                   ) : (
@@ -142,14 +158,26 @@ export function NutritionPage() {
                   <h2 className="text-lg font-black">Поиск продукта</h2>
                 </div>
               </div>
-              <Input placeholder="Например, творог" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <div className="grid gap-3">
+                <Field label="Куда добавить">
+                  <Select value={targetMealId} onChange={(event) => setTargetMealId(event.target.value)}>
+                    {mealsForDay.length === 0 ? <option value="">Сначала создайте приём пищи</option> : null}
+                    {mealsForDay.map((meal) => (
+                      <option key={meal.id} value={meal.id}>
+                        {mealTypes.find(([type]) => type === meal.meal_type)?.[1] ?? meal.meal_type}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Input placeholder="Например, творог" value={search} onChange={(event) => setSearch(event.target.value)} />
+              </div>
               <div className="mt-3 grid gap-2">
                 {foods.data?.map((food) => (
                   <button
                     key={food.id}
                     className="rounded-md border border-line bg-[#fbfaf6] p-3 text-left transition hover:border-[#c9c4b8] hover:bg-white disabled:opacity-50"
-                    disabled={!firstMeal}
-                    onClick={() => firstMeal && addItem.mutate({ mealId: firstMeal.id, foodId: food.id })}
+                    disabled={!targetMeal}
+                    onClick={() => targetMeal && addItem.mutate({ mealId: targetMeal.id, foodId: food.id })}
                   >
                     <span className="block font-bold">{food.name}</span>
                     <span className="text-sm font-medium text-muted">{moneylessNumber(food.calories_per_100g)} ккал / 100 г</span>
@@ -202,7 +230,7 @@ function CreateFoodCard() {
       </div>
       <form className="grid gap-3" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
         <Field label="Название" error={form.formState.errors.name?.message}><Input {...form.register("name")} /></Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Ккал"><Input type="number" step="0.01" {...form.register("calories_per_100g")} /></Field>
           <Field label="Белки"><Input type="number" step="0.01" {...form.register("protein_per_100g")} /></Field>
           <Field label="Жиры"><Input type="number" step="0.01" {...form.register("fat_per_100g")} /></Field>
@@ -211,5 +239,66 @@ function CreateFoodCard() {
         <Button type="submit" disabled={!form.formState.isValid} isLoading={mutation.isPending}>Создать</Button>
       </form>
     </Card>
+  );
+}
+
+function MealItemRow({
+  date,
+  item,
+  onDelete,
+}: {
+  date: string;
+  item: MealItem;
+  onDelete: (id: string) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [weight, setWeight] = useState(item.weight_g ?? "");
+  const update = useMutation({
+    mutationFn: () => api.updateMealItem(item.id, { weight_g: weight }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nutrition-day", date] }),
+  });
+
+  useEffect(() => {
+    setWeight(item.weight_g ?? "");
+  }, [item.weight_g]);
+
+  return (
+    <div className="grid gap-3 rounded-md border border-line bg-[#fbfaf6] p-3 sm:grid-cols-[1fr_190px_auto] sm:items-end">
+      <div className="min-w-0">
+        <p className="truncate font-bold">{item.display_name_snapshot}</p>
+        <p className="text-sm font-medium text-muted">
+          {moneylessNumber(item.weight_g)} г · {moneylessNumber(item.calories_snapshot)} ккал
+        </p>
+      </div>
+      <Field label="Граммы">
+        <Input
+          min="0.01"
+          step="0.01"
+          type="number"
+          value={weight}
+          onChange={(event) => setWeight(event.target.value)}
+        />
+      </Field>
+      <div className="grid grid-cols-2 gap-2 sm:flex">
+        <Button
+          aria-label="Сохранить граммовку"
+          disabled={Number(weight) <= 0}
+          isLoading={update.isPending}
+          onClick={() => update.mutate()}
+          type="button"
+          variant="secondary"
+        >
+          <Save className="h-4 w-4" aria-hidden />
+        </Button>
+        <Button aria-label="Удалить продукт" type="button" variant="ghost" onClick={() => onDelete(item.id)}>
+          <Trash2 className="h-4 w-4" aria-hidden />
+        </Button>
+      </div>
+      {update.error ? (
+        <p className="text-sm font-bold text-coral sm:col-span-3">
+          {update.error instanceof Error ? update.error.message : "Не удалось обновить граммовку"}
+        </p>
+      ) : null}
+    </div>
   );
 }

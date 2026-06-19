@@ -555,6 +555,39 @@ class FoodRecognitionItemDetailView(APIView):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        tags=["AI Nutrition"],
+        operation_id="food_recognition_items_delete",
+        parameters=[
+            uuid_path_parameter(
+                "recognition_item_id",
+                "Food recognition item UUID.",
+            ),
+        ],
+        responses={200: NutritionSuccessResponseSerializer},
+    )
+    def delete(self, request, recognition_item_id):
+        recognition_item = self._get_user_recognition_item(request, recognition_item_id)
+
+        if recognition_item.recognition.status != FoodRecognitionStatus.DRAFT:
+            raise ValidationError(
+                {
+                    "status": "Можно удалять позиции только из черновика распознавания"
+                }
+            )
+
+        recognition_item.delete()
+
+        return Response(
+            {
+                "data": {
+                    "success": True,
+                },
+                "meta": {},
+            },
+            status=status.HTTP_200_OK,
+        )
+
     def _get_user_recognition_item(self, request, recognition_item_id):
         try:
             return FoodRecognitionItem.objects.select_related("recognition").get(

@@ -110,8 +110,31 @@ export type Exercise = {
   description?: string;
   tracking_type: string;
   is_system: boolean;
-  primary_muscle_group?: { id: string; name: string };
-  equipment?: { id: string; name: string } | null;
+  primary_muscle_group?: { id: string; code: string; name: string };
+  equipment?: { id: string; code: string; name: string } | null;
+};
+
+export type RoutineExercise = {
+  id: string;
+  exercise_id: string;
+  position: number;
+  planned_sets: number;
+  rep_min: number | null;
+  rep_max: number | null;
+  target_weight: string | null;
+  target_rpe: string | null;
+  target_rir: string | null;
+  rest_seconds: number | null;
+  notes?: string;
+  superset_group?: string;
+};
+
+export type RoutineDay = {
+  id: string;
+  name: string;
+  position: number;
+  planned_weekday: number | null;
+  exercises: RoutineExercise[];
 };
 
 export type Routine = {
@@ -120,12 +143,7 @@ export type Routine = {
   description?: string;
   color?: string;
   is_active: boolean;
-  days: Array<{
-    id: string;
-    name: string;
-    position: number;
-    exercises: Array<{ id: string; exercise_id: string; planned_sets: number }>;
-  }>;
+  days: RoutineDay[];
 };
 
 export type WorkoutSet = {
