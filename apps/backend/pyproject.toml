@@ -10,6 +10,7 @@ dependencies = [
   "pytest-django>=4.8,<5.0",
   "djangorestframework-simplejwt>=5.3,<6.0",
   "psycopg[binary]>=3.2,<4.0",
+  "gunicorn<24.0,>=23.0",
 ]
 
 [tool.setuptools]

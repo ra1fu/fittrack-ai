@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: fittrack-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: apps/backend/Dockerfile
+    healthCheckPath: /api/v1/health/
+    envVars:
+      - key: DJANGO_DEBUG
+        value: false
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false
+      - key: DJANGO_CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: DJANGO_CORS_ALLOW_CREDENTIALS
+        value: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_WAIT_TIMEOUT_SECONDS
+        value: 60
+      - key: DJANGO_RUN_MIGRATIONS
+        value: true
+      - key: DJANGO_SEED_CATALOGS
+        value: true
+      - key: NUTRITION_AI_PHOTO_PROVIDER
+        value: disabled
+      - key: OPEN_FOOD_FACTS_USER_AGENT
+        sync: false
+      - key: WEB_CONCURRENCY
+        value: 2
+      - key: GUNICORN_TIMEOUT
+        value: 120
